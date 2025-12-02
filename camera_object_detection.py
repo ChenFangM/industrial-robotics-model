@@ -263,18 +263,32 @@ def main():
     print("Press 'q' to quit")
     print("-" * 60)
     # Capture one annotated frame every `interval_seconds` and show it for the whole interval
-    interval_seconds = 3
+    interval_seconds = 10
 
     # Wrap capture in a background reader to minimize latency from driver buffers
     async_cap = VideoCaptureAsync(cap).start()
+
+    # Wait briefly for the background reader to populate the first frame
+    startup_wait = 2.0
+    t0 = time.time()
+    while True:
+        ok, _ = async_cap.read()
+        if ok:
+            break
+        if time.time() - t0 > startup_wait:
+            print("Warning: no frames received from camera after startup wait; continuing and retrying.")
+            break
+        time.sleep(0.05)
 
     try:
         while True:
             # Capture the most recent frame from background reader
             ret, frame = async_cap.read()
             if not ret:
-                print("Error: Failed to capture frame")
-                break
+                # don't abort immediately; retry a few times to handle transient driver delays
+                print("Warning: failed to grab frame; retrying...")
+                time.sleep(0.1)
+                continue
 
             # Run detection on the captured frame
             detections = detect_objects(frame, net, confidence_threshold=0.5)
@@ -368,7 +382,10 @@ class VideoCaptureAsync:
 
     def read(self) -> Tuple[bool, any]:
         with self.lock:
-            return self.grabbed, self.frame.copy() if (self.frame is not None) else (False, None)
+            if not self.grabbed or self.frame is None:
+                return False, None
+            # return a copy to avoid race conditions with the background thread
+            return True, self.frame.copy()
 
     def stop(self):
         self.stopped = True
