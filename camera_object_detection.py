@@ -23,13 +23,20 @@ import os
 import sys
 import urllib.request
 from urllib.error import URLError, HTTPError
+import time
 
 
 # COCO class labels that MobileNet SSD was trained on
+# CLASSES = [
+#     "background", "aeroplane", "bicycle", "bird", "boat",
+#     "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
+#     "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
+#     "sofa", "train", "tvmonitor"
+# ]
 CLASSES = [
-    "background", "aeroplane", "bicycle", "bird", "boat",
+    "background", "bird", "boat",
     "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
-    "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
+    "dog", "horse", "person", "pottedplant", "sheep",
     "sofa", "train", "tvmonitor"
 ]
 
@@ -253,51 +260,63 @@ def main():
     print("\nStarting camera feed...")
     print("Press 'q' to quit")
     print("-" * 60)
+    # Capture one annotated frame every `interval_seconds` and show it for the whole interval
+    interval_seconds = 10
 
-    frame_count = 0
-    fps_start_time = cv2.getTickCount()
+    try:
+        while True:
+            # Capture a single frame
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Failed to capture frame")
+                break
 
-    while True:
-        # Read frame from camera
-        ret, frame = cap.read()
+            # Run detection on the captured frame
+            detections = detect_objects(frame, net, confidence_threshold=0.5)
 
-        if not ret:
-            print("Error: Failed to capture frame")
-            break
+            # Draw detections on a copy so we can overlay countdown separately
+            annotated = draw_detections(frame.copy(), detections)
 
-        # Perform object detection
-        detections = detect_objects(frame, net, confidence_threshold=0.5)
+            # Show the annotated frame and display a countdown until next capture
+            start_t = time.time()
+            while True:
+                elapsed = time.time() - start_t
+                remaining = int(max(0, interval_seconds - elapsed))
 
-        # Draw detections on frame
-        frame = draw_detections(frame, detections)
+                # Prepare display copy with countdown text
+                display = annotated.copy()
 
-        # Calculate and display FPS
-        frame_count += 1
-        if frame_count >= 30:
-            fps_end_time = cv2.getTickCount()
-            fps = frame_count / ((fps_end_time - fps_start_time) / cv2.getTickFrequency())
-            fps_start_time = fps_end_time
-            frame_count = 0
+                # Draw countdown (large, top-left)
+                countdown_text = f"Next capture in: {remaining}s"
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 1.0
+                thickness = 2
+                text_size, baseline = cv2.getTextSize(countdown_text, font, font_scale, thickness)
+                text_org = (10, text_size[1] + 10)
 
-            # Display FPS on frame
-            cv2.putText(
-                frame,
-                f"FPS: {fps:.1f}",
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 255, 0),
-                2
-            )
+                cv2.rectangle(
+                    display,
+                    (text_org[0] - 5, text_org[1] - text_size[1] - 5),
+                    (text_org[0] + text_size[0] + 5, text_org[1] + baseline + 5),
+                    (0, 0, 0),
+                    cv2.FILLED
+                )
+                cv2.putText(display, countdown_text, text_org, font, font_scale, (255, 255, 255), thickness)
 
-        # Display the frame
-        cv2.imshow(window_name, frame)
+                # Show the frame
+                cv2.imshow(window_name, display)
 
-        # Check for quit key
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q') or key == ord('Q'):
-            print("\nQuitting...")
-            break
+                # Wait a short time so the window stays responsive; user can press 'q' to quit
+                key = cv2.waitKey(200) & 0xFF
+                if key == ord('q') or key == ord('Q'):
+                    print("\nQuitting...")
+                    raise KeyboardInterrupt
+
+                # Break when interval elapsed and capture next frame
+                if elapsed >= interval_seconds:
+                    break
+    except KeyboardInterrupt:
+        pass
 
     # Cleanup
     cap.release()
