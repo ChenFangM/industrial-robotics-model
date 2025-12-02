@@ -259,48 +259,6 @@ def main():
     window_name = "Object Detection - Press 'q' to quit"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
-
-class VideoCaptureAsync:
-    """Background thread that constantly reads frames from a cv2.VideoCapture
-    and keeps the most recent frame available via `read()`.
-
-    This reduces latency caused by internal driver buffers since the latest
-    frame is always stored in memory and returned immediately on request.
-    """
-
-    def __init__(self, cap: cv2.VideoCapture):
-        self.cap = cap
-        self.grabbed = False
-        self.frame = None
-        self.lock = threading.Lock()
-        self.stopped = True
-        self.thread = None
-
-    def start(self):
-        if not self.stopped:
-            return self
-        self.stopped = False
-        self.thread = threading.Thread(target=self.update, daemon=True)
-        self.thread.start()
-        return self
-
-    def update(self):
-        while not self.stopped:
-            grabbed, frame = self.cap.read()
-            with self.lock:
-                self.grabbed = grabbed
-                if grabbed:
-                    self.frame = frame
-
-    def read(self) -> Tuple[bool, any]:
-        with self.lock:
-            return self.grabbed, self.frame.copy() if (self.frame is not None) else (False, None)
-
-    def stop(self):
-        self.stopped = True
-        if self.thread is not None:
-            self.thread.join(timeout=1.0)
-
     print("\nStarting camera feed...")
     print("Press 'q' to quit")
     print("-" * 60)
@@ -370,9 +328,53 @@ class VideoCaptureAsync:
         pass
 
     # Cleanup
+    async_cap.stop()
     cap.release()
     cv2.destroyAllWindows()
     print("Camera released and windows closed.")
+
+
+class VideoCaptureAsync:
+    """Background thread that constantly reads frames from a cv2.VideoCapture
+    and keeps the most recent frame available via `read()`.
+
+    This reduces latency caused by internal driver buffers since the latest
+    frame is always stored in memory and returned immediately on request.
+    """
+
+    def __init__(self, cap: cv2.VideoCapture):
+        self.cap = cap
+        self.grabbed = False
+        self.frame = None
+        self.lock = threading.Lock()
+        self.stopped = True
+        self.thread = None
+
+    def start(self):
+        if not self.stopped:
+            return self
+        self.stopped = False
+        self.thread = threading.Thread(target=self.update, daemon=True)
+        self.thread.start()
+        return self
+
+    def update(self):
+        while not self.stopped:
+            grabbed, frame = self.cap.read()
+            with self.lock:
+                self.grabbed = grabbed
+                if grabbed:
+                    self.frame = frame
+
+    def read(self) -> Tuple[bool, any]:
+        with self.lock:
+            return self.grabbed, self.frame.copy() if (self.frame is not None) else (False, None)
+
+    def stop(self):
+        self.stopped = True
+        if self.thread is not None:
+            self.thread.join(timeout=1.0)
+    # (main loop previously here was moved into `main()` so class body stays clean)
 
 
 if __name__ == "__main__":
