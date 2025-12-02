@@ -182,27 +182,32 @@ def draw_detections(frame, detections):
         # Draw bounding box
         cv2.rectangle(frame, (start_x, start_y), (end_x, end_y), color, 2)
 
-        # Draw label background
-        label_size, baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-        y = max(start_y, label_size[1] + 10)
-        cv2.rectangle(
-            frame,
-            (start_x, y - label_size[1] - 10),
-            (start_x + label_size[0], y + baseline - 10),
-            color,
-            cv2.FILLED
-        )
+        # Draw label with consistent sizing and bounds checking
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        thickness = 1
+        pad = 6
 
-        # Draw label text
-        cv2.putText(
-            frame,
-            label,
-            (start_x, y - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 255, 255),
-            2
-        )
+        # Measure text size
+        (label_w, label_h), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+        h, w = frame.shape[:2]
+
+        # Try to place label above the box; if it would go out of frame, place it below
+        x1 = int(max(0, start_x))
+        y1 = int(start_y - label_h - 2 * pad)
+        if y1 < 0:
+            y1 = int(start_y + pad)
+
+        x2 = int(min(w, x1 + label_w + 2 * pad))
+        y2 = int(min(h, y1 + label_h + 2 * pad))
+
+        # Draw filled background rectangle for label
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FILLED)
+
+        # Draw label text (bottom-left origin)
+        text_x = x1 + pad
+        text_y = y1 + label_h + pad - max(0, baseline // 2)
+        cv2.putText(frame, label, (int(text_x), int(text_y)), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
     return frame
 
