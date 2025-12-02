@@ -29,7 +29,8 @@ from typing import Tuple, Optional
 RECT_COLOR = (0, 200, 255)
 
 
-def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000, visualize: bool = False) -> Tuple[Optional[float], Optional[np.ndarray]]:
+def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000,max_ratio: float = 2.0,
+                                 visualize: bool = False) -> Tuple[Optional[float], Optional[np.ndarray]]:
     """
     Detect the largest rectangular-like contour in an image and return its orientation.
 
