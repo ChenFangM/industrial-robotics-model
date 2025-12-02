@@ -180,7 +180,7 @@ def main():
     print("Press 'q' to quit")
     print("-" * 60)
     # Capture one annotated frame every `interval_seconds` and show it for the whole interval
-    interval_seconds = 3
+    interval_seconds = 1.5
 
     # Wrap capture in a background reader to minimize latency from driver buffers
     async_cap = VideoCaptureAsync(cap).start()
@@ -224,7 +224,7 @@ def main():
             start_t = time.time()
             while True:
                 elapsed = time.time() - start_t
-                remaining = int(max(0, interval_seconds - elapsed))
+                remaining = int(max(0, interval_seconds*2 - elapsed))
 
                 # Prepare display copy with countdown text
                 display = annotated.copy()
