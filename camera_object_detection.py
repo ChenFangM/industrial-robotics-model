@@ -184,7 +184,7 @@ def draw_detections(frame, detections):
 
         # Draw label with consistent sizing and bounds checking
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.5
+        font_scale = 1
         thickness = 1
         pad = 6
 
