@@ -197,7 +197,7 @@ def draw_detections(frame, detections):
         cv2.putText(
             frame,
             label,
-            (start_x, y - 7),
+            (start_x, y - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             (255, 255, 255),
