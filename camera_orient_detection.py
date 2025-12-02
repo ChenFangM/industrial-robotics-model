@@ -54,8 +54,8 @@ def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000, visual
         return None, None
 
     # Preprocess: grayscale, blur, edges
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5,5), 0)
     edges = cv2.Canny(blur, 50, 150)
 
     # Find external contours
@@ -71,25 +71,39 @@ def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000, visual
         if area < min_area:
             continue
 
-        # Fit minimum-area rectangle
-        rect = cv2.minAreaRect(cnt)  # ((cx, cy), (w, h), angle)
+        # Approximate contour to polygon
+        epsilon = 0.02 * cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, epsilon, True)
+
+        if len(approx) != 4:
+            continue  # Not a quadrilateral
+
+        # Fit min area rectangle
+        rect = cv2.minAreaRect(cnt)  # ((cx,cy),(w,h),angle)
         box = cv2.boxPoints(rect)
         box = np.int32(box)
 
         w, h = rect[1]
-        angle = rect[2]
+        if w == 0 or h == 0:
+            continue
 
-        # Adjust angle: ensure it's the angle from horizontal edge, normalized [0,180)
+        # Aspect ratio filtering
+        ratio = max(w, h) / min(w, h)
+        if ratio > max_ratio:
+            continue  # skip very elongated shapes
+
+        # Compute angle
+        angle = rect[2]
         if w < h:
             angle += 90.0
         angle = angle % 180.0
 
         if visualize:
             vis = frame.copy()
-            cv2.drawContours(vis, [box], 0, (0, 255, 0), 2)
-            cv2.putText(vis, f"{angle:.1f} deg", tuple(box[0]), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7, (0, 0, 255), 2)
-            cv2.imshow("Rectangle Orientation", vis)
+            cv2.drawContours(vis, [box], 0, (0,255,0), 2)
+            cv2.putText(vis, f"{angle:.1f} deg", tuple(box[0]),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
+            cv2.imshow("Rectangle Detection", vis)
             cv2.waitKey(1)
 
         return angle, box
@@ -186,7 +200,7 @@ def main():
         while True:
             # Capture the most recent frame from background reader
             ret, frame = async_cap.read()
-            
+
             # test_frame = np.full((400, 400, 3), 255, dtype=np.uint8)
             # cv2.rectangle(test_frame, (50, 50), (350, 200), (0, 0, 0), thickness=cv2.FILLED)
             # cv2.imwrite("test_rect.png", test_frame)
