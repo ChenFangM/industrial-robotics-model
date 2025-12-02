@@ -224,7 +224,7 @@ def main():
             start_t = time.time()
             while True:
                 elapsed = time.time() - start_t
-                remaining = int(max(0, interval_seconds*2 - elapsed))
+                remaining = round(max(0, interval_seconds - elapsed), 1)
 
                 # Prepare display copy with countdown text
                 display = annotated.copy()
