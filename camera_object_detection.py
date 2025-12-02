@@ -205,7 +205,7 @@ def draw_detections(frame, detections):
             label,
             (start_x, y - 7),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
+            1,
             (255, 255, 255),
             2
         )
@@ -306,7 +306,7 @@ def main():
                 display = annotated.copy()
 
                 # Draw countdown (large, top-left)
-                countdown_text = f"Next capture in: {remaining}s"
+                countdown_text = f"Next capture in: {remaining + 1}s"
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 1.0
                 thickness = 2
