@@ -228,8 +228,7 @@ def main():
     print("USB Camera Feed with Object Detection")
     print("=" * 60)
 
-    # Initialize the object detector
-    net = initialize_detector()
+    # No external neural model required for orientation detection
 
     # Initialize the camera
     # Try different camera indices if default doesn't work
@@ -253,48 +252,7 @@ def main():
 
     # Set camera properties for better performance on Raspberry Pi
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-
-    # Get actual camera properties
-    actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    actual_fps = cap.get(cv2.CAP_PROP_FPS)
-    print(f"Camera resolution: {int(actual_width)}x{int(actual_height)} @ {actual_fps} FPS")
-
-    # Create window
-    window_name = "Object Detection - Press 'q' to quit"
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-
-    print("\nStarting camera feed...")
-    print("Press 'q' to quit")
-    print("-" * 60)
-    # Capture one annotated frame every `interval_seconds` and show it for the whole interval
-    interval_seconds = 3
-
-    # Wrap capture in a background reader to minimize latency from driver buffers
-    async_cap = VideoCaptureAsync(cap).start()
-
-    # Wait briefly for the background reader to populate the first frame
-    startup_wait = 2.0
-    t0 = time.time()
-    while True:
-        ok, _ = async_cap.read()
-        if ok:
-            break
-        if time.time() - t0 > startup_wait:
-            print("Warning: no frames received from camera after startup wait; continuing and retrying.")
-            break
-        time.sleep(0.05)
-
-    try:
-        while True:
-            # Capture the most recent frame from background reader
-            ret, frame = async_cap.read()
-            if not ret:
-                # don't abort immediately; retry a few times to handle transient driver delays
-                print("Warning: failed to grab frame; retrying...")
-                time.sleep(0.1)
+                # No object detector required in this script; orientation detection is done via contours
                 continue
 
             # Run rectangle orientation detection on the captured frame
