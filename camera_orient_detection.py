@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-USB Camera Feed with Object Detection for Raspberry Pi OS
+USB Camera Feed with Orientation Detection (Angle of Rectangle)
 
-This script captures video from a USB camera and detects the orientation of the
-largest rectangular object in the scene. The script shows one annotated frame
-every few seconds and draws the detected rectangle with its rotation angle.
+This script captures video from a USB camera and, instead of object detection,
+detects the orientation (angle of rotation) of the largest rectangular object
+in view. The UI remains the same: one annotated frame is shown every
+`interval_seconds` with a countdown overlay.
 
 Usage:
     python3 camera_orient_detection.py
 
 Requirements:
-    - OpenCV with DNN support (pip install opencv-python)
+    - OpenCV (pip install opencv-python)
     - NumPy (pip install numpy)
     - USB camera connected to the device
 
@@ -19,78 +20,61 @@ Press 'q' to quit the application.
 
 import cv2
 import numpy as np
-import os
 import sys
 import time
 import threading
-from typing import Tuple
+from typing import Tuple, Optional
 
 
-# Color used for drawing detected rectangle and text
 RECT_COLOR = (0, 200, 255)
 
 
-def detect_rectangle_orientation(frame):
-    """Detect the largest rectangular-ish contour in `frame` and return
-    its minimum-area bounding box and rotation angle in degrees.
+def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000) -> Tuple[Optional[float], Optional[np.ndarray]]:
+    """Detect the largest rectangular-ish contour and return (angle_deg, box_points).
 
-    Returns: (angle_deg, box_points) or (None, None) if nothing detected.
+    Angle is normalized to [0, 180). Returns (None, None) if nothing detected.
     """
-    h, w = frame.shape[:2]
+    if frame is None:
+        return None, None
 
-    # Convert to grayscale and blur to reduce noise
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
-
-    # Use adaptive threshold or Canny to find edges
     edges = cv2.Canny(blur, 50, 150)
 
-    # Find contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None, None
 
-    # Find the largest contour by area
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < 1000:  # ignore small contours/noise
+        if area < min_area:
             continue
 
-        # Compute minimum area rect
         rect = cv2.minAreaRect(cnt)  # ((cx,cy),(w,h),angle)
         box = cv2.boxPoints(rect)
         box = np.int0(box)
 
-        # Normalize angle: OpenCV returns angle in range [-90,0)
-        angle = rect[2]
-        width, height = rect[1]
-        if width < height:
+        angle = float(rect[2])
+        w, h = rect[1]
+        # Adjust angle to be rotation from horizontal in degrees [0,180)
+        if w < h:
             angle = angle + 90.0
 
-        # Accept rectangle-like shapes: aspect ratio filter (optional)
-        if width == 0 or height == 0:
-            continue
-        aspect = max(width, height) / (min(width, height) + 1e-6)
-        # If contour is very elongated, maybe it's not the rectangle we want; still allow
+        # normalize
+        angle = angle % 180.0
 
-        return float(angle), box
+        return angle, box
 
     return None, None
 
 
-def draw_orientation(frame, angle, box):
-    """Draw the rotated box and angle text onto `frame`.
-
-    `box` should be 4 points (Nx2) from cv2.boxPoints.
-    """
+def draw_orientation(frame: np.ndarray, angle: Optional[float], box: Optional[np.ndarray]) -> np.ndarray:
     if box is None or angle is None:
         return frame
 
-    # Draw polygon
     cv2.drawContours(frame, [box], 0, RECT_COLOR, 2)
 
-    # Put angle text near top-left of box
     x_coords = box[:, 0]
     y_coords = box[:, 1]
     tx = int(np.min(x_coords))
@@ -101,7 +85,6 @@ def draw_orientation(frame, angle, box):
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.8
     thickness = 2
-    # Background
     (lw, lh), baseline = cv2.getTextSize(label, font, font_scale, thickness)
     cv2.rectangle(frame, (tx - 4, ty - lh - 4), (tx + lw + 4, ty + baseline + 4), RECT_COLOR, cv2.FILLED)
     cv2.putText(frame, label, (tx, ty), font, font_scale, (0, 0, 0), thickness, cv2.LINE_AA)
@@ -109,126 +92,11 @@ def draw_orientation(frame, angle, box):
     return frame
 
 
-def detect_objects(frame, net, confidence_threshold=0.5):
-    """
-    Perform object detection on a frame.
-
-    Args:
-        frame: Input image/frame from camera
-        net: The neural network model
-        confidence_threshold: Minimum confidence for detection
-
-    Returns:
-        List of detections, each containing (class_id, confidence, box)
-    """
-    # Get frame dimensions
-    height, width = frame.shape[:2]
-
-    # Create a blob from the frame
-    blob = cv2.dnn.blobFromImage(
-        cv2.resize(frame, (300, 300)),
-        0.007843,
-        (300, 300),
-        127.5
-    )
-
-    # Pass the blob through the network
-    net.setInput(blob)
-    detections = net.forward()
-
-    results = []
-
-    # Loop over the detections
-    for i in range(detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-
-        # Filter out weak detections
-        if confidence > confidence_threshold:
-            class_id = int(detections[0, 0, i, 1])
-
-            # Validate class_id is within valid range
-            if class_id < 0 or class_id >= len(CLASSES):
-                continue
-
-            # Get bounding box coordinates
-            box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
-            start_x, start_y, end_x, end_y = box.astype("int")
-
-            # Ensure coordinates are within frame bounds
-            start_x = max(0, start_x)
-            start_y = max(0, start_y)
-            end_x = min(width, end_x)
-            end_y = min(height, end_y)
-
-            results.append((class_id, confidence, (start_x, start_y, end_x, end_y)))
-
-    return results
-
-
-def draw_detections(frame, detections):
-    """
-    Draw bounding boxes and labels on the frame.
-
-    Args:
-        frame: Input image/frame
-        detections: List of detections from detect_objects()
-
-    Returns:
-        Frame with drawn detections
-    """
-    for class_id, confidence, box in detections:
-        # Skip invalid class IDs
-        if class_id < 0 or class_id >= len(CLASSES):
-            continue
-
-        start_x, start_y, end_x, end_y = box
-
-        # Get color and label for this class
-        color = [int(c) for c in COLORS[class_id]]
-        label = f"{CLASSES[class_id]}: {confidence:.2f}"
-
-        # Draw bounding box
-        cv2.rectangle(frame, (start_x, start_y), (end_x, end_y), color, 2)
-
-        # Draw label with consistent sizing and bounds checking
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 1
-        thickness = 2
-        pad = 6
-
-        # Measure text size
-        (label_w, label_h), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-        h, w = frame.shape[:2]
-
-        # Try to place label above the box; if it would go out of frame, place it below
-        x1 = int(max(0, start_x))
-        y1 = int(start_y - label_h - 2 * pad)
-        if y1 < 0:
-            y1 = int(start_y + pad)
-
-        x2 = int(min(w, x1 + label_w + 2 * pad))
-        y2 = int(min(h, y1 + label_h + 2 * pad))
-
-        # Draw filled background rectangle for label
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FILLED)
-
-        # Draw label text (bottom-left origin)
-        text_x = x1 + pad
-        text_y = y1 + label_h + pad - max(0, baseline // 2)
-        cv2.putText(frame, label, (int(text_x), int(text_y)), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
-
-    return frame
-
-
 def main():
-    """
-    Main function to run the camera feed with object detection.
-    """
+    """Run the camera feed with rectangle orientation detection."""
     print("=" * 60)
-    print("USB Camera Feed with Object Detection")
+    print("USB Camera Feed with Orientation Detection")
     print("=" * 60)
-
-    # No external neural model required for orientation detection
 
     # Initialize the camera
     # Try different camera indices if default doesn't work
@@ -252,13 +120,54 @@ def main():
 
     # Set camera properties for better performance on Raspberry Pi
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                # No object detector required in this script; orientation detection is done via contours
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+
+    # Get actual camera properties
+    actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"Camera resolution: {int(actual_width)}x{int(actual_height)} @ {actual_fps} FPS")
+
+    # Create window
+    window_name = "Orientation Detection - Press 'q' to quit"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+    print("\nStarting camera feed...")
+    print("Press 'q' to quit")
+    print("-" * 60)
+    # Capture one annotated frame every `interval_seconds` and show it for the whole interval
+    interval_seconds = 3
+
+    # Wrap capture in a background reader to minimize latency from driver buffers
+    async_cap = VideoCaptureAsync(cap).start()
+
+    # Wait briefly for the background reader to populate the first frame
+    startup_wait = 2.0
+    t0 = time.time()
+    while True:
+        ok, _ = async_cap.read()
+        if ok:
+            break
+        if time.time() - t0 > startup_wait:
+            print("Warning: no frames received from camera after startup wait; continuing and retrying.")
+            break
+        time.sleep(0.05)
+
+    try:
+        while True:
+            # Capture the most recent frame from background reader
+            ret, frame = async_cap.read()
+            if not ret:
+                # don't abort immediately; retry a few times to handle transient driver delays
+                print("Warning: failed to grab frame; retrying...")
+                time.sleep(0.1)
                 continue
 
             # Run rectangle orientation detection on the captured frame
             angle, box = detect_rectangle_orientation(frame)
 
-            # Draw detection results on a copy so we can overlay countdown separately
+            # Draw orientation on a copy so we can overlay countdown separately
             annotated = draw_orientation(frame.copy(), angle, box)
 
             # Show the annotated frame and display a countdown until next capture
