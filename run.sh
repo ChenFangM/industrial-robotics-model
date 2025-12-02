@@ -3,7 +3,7 @@ set -euo pipefail
 
 # run from script directory
 cd "$(dirname "$0")"
-RUNFILE="camera_object_detection.py"
+RUNFILE="camera_orient_detection.py"
 
 # create a local venv if neither .venv nor venv exist
 if [ ! -d "./venv" ]; then

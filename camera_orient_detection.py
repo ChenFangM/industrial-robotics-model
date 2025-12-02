@@ -30,39 +30,69 @@ RECT_COLOR = (0, 200, 255)
 
 
 def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000) -> Tuple[Optional[float], Optional[np.ndarray]]:
-    """Detect the largest rectangular-ish contour and return (angle_deg, box_points).
-
-    Angle is normalized to [0, 180). Returns (None, None) if nothing detected.
+    def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000, visualize: bool = False
+                                ) -> Tuple[Optional[float], Optional[np.ndarray]]:
     """
-    if frame is None:
+    Detect the largest rectangular-like contour in an image and return its orientation.
+
+    Parameters
+    ----------
+    frame : np.ndarray
+        Input BGR image.
+    min_area : int
+        Minimum contour area to be considered a rectangle.
+    visualize : bool
+        If True, draws the detected rectangle and angle on a copy of the frame.
+
+    Returns
+    -------
+    angle_deg : Optional[float]
+        Orientation angle in degrees, normalized to [0, 180). None if no rectangle detected.
+    box_points : Optional[np.ndarray]
+        4 corner points of the rectangle as int32. None if no rectangle detected.
+    """
+
+    if frame is None or frame.size == 0:
         return None, None
 
+    # Preprocess: grayscale, blur, edges
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blur, 50, 150)
 
+    # Find external contours
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None, None
 
+    # Sort contours by area descending
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
     for cnt in contours:
         area = cv2.contourArea(cnt)
         if area < min_area:
             continue
 
-        rect = cv2.minAreaRect(cnt)  # ((cx,cy),(w,h),angle)
+        # Fit minimum-area rectangle
+        rect = cv2.minAreaRect(cnt)  # ((cx, cy), (w, h), angle)
         box = cv2.boxPoints(rect)
-        box = box.astype(np.int32)
+        box = np.int32(box)
 
-        angle = float(rect[2])
         w, h = rect[1]
-        # Adjust angle to be rotation from horizontal in degrees [0,180)
-        if w < h:
-            angle = angle + 90.0
+        angle = rect[2]
 
-        # normalize
+        # Adjust angle: ensure it's the angle from horizontal edge, normalized [0,180)
+        if w < h:
+            angle += 90.0
         angle = angle % 180.0
+
+        if visualize:
+            vis = frame.copy()
+            cv2.drawContours(vis, [box], 0, (0, 255, 0), 2)
+            cv2.putText(vis, f"{angle:.1f} deg", tuple(box[0]), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7, (0, 0, 255), 2)
+            cv2.imshow("Rectangle Orientation", vis)
+            cv2.waitKey(1)
 
         return angle, box
 
