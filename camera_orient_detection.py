@@ -53,7 +53,7 @@ def detect_rectangle_orientation(frame: np.ndarray, min_area: int = 1000) -> Tup
 
         rect = cv2.minAreaRect(cnt)  # ((cx,cy),(w,h),angle)
         box = cv2.boxPoints(rect)
-        box = np.int0(box)
+        box = box.astype(np.int32)
 
         angle = float(rect[2])
         w, h = rect[1]
