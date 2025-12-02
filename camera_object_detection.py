@@ -261,7 +261,7 @@ def main():
     print("Press 'q' to quit")
     print("-" * 60)
     # Capture one annotated frame every `interval_seconds` and show it for the whole interval
-    interval_seconds = 10
+    interval_seconds = 3
 
     try:
         while True:
@@ -294,13 +294,17 @@ def main():
                 text_size, baseline = cv2.getTextSize(countdown_text, font, font_scale, thickness)
                 text_org = (10, text_size[1] + 10)
 
-                cv2.rectangle(
-                    display,
-                    (text_org[0] - 5, text_org[1] - text_size[1] - 5),
-                    (text_org[0] + text_size[0] + 5, text_org[1] + baseline + 5),
-                    (0, 0, 0),
-                    cv2.FILLED
-                )
+                # Position text in bottom-right corner
+                h, w = display.shape[:2]
+                x = w - text_size[0] - 10
+                y = h - 10
+                text_org = (x, y)
+
+                # Background rectangle coordinates (clamped to image bounds)
+                tl = (max(0, x - 5), max(0, y - text_size[1] - 5))
+                br = (min(w, x + text_size[0] + 5), min(h, y + baseline + 5))
+
+                cv2.rectangle(display, tl, br, (0, 0, 0), cv2.FILLED)
                 cv2.putText(display, countdown_text, text_org, font, font_scale, (255, 255, 255), thickness)
 
                 # Show the frame
