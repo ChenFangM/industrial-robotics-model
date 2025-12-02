@@ -29,16 +29,10 @@ from typing import Tuple
 
 
 # COCO class labels that MobileNet SSD was trained on
-# CLASSES = [
-#     "background", "aeroplane", "bicycle", "bird", "boat",
-#     "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
-#     "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
-#     "sofa", "train", "tvmonitor"
-# ]
 CLASSES = [
-    "background", "bird", "boat",
+    "background", "aeroplane", "bicycle", "bird", "boat",
     "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
-    "dog", "horse", "person", "pottedplant", "sheep",
+    "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
     "sofa", "train", "tvmonitor"
 ]
 
