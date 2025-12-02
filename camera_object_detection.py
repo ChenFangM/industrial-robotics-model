@@ -19,7 +19,10 @@ Press 'q' to quit the application.
 
 import cv2
 import numpy as np
+import os
 import sys
+import urllib.request
+from urllib.error import URLError, HTTPError
 
 
 # COCO class labels that MobileNet SSD was trained on
@@ -40,9 +43,6 @@ def download_model_files():
     Downloads the MobileNet SSD model files if they don't exist.
     Returns the paths to the prototxt and caffemodel files.
     """
-    import urllib.request
-    import os
-
     # Model file URLs
     prototxt_url = "https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/deploy.prototxt"
     model_url = "https://github.com/chuanqi305/MobileNet-SSD/raw/master/mobilenet_iter_73000.caffemodel"
@@ -52,17 +52,30 @@ def download_model_files():
     prototxt_path = os.path.join(script_dir, "deploy.prototxt")
     model_path = os.path.join(script_dir, "mobilenet_iter_73000.caffemodel")
 
-    # Download prototxt if not exists
-    if not os.path.exists(prototxt_path):
-        print("Downloading MobileNet SSD prototxt file...")
-        urllib.request.urlretrieve(prototxt_url, prototxt_path)
-        print("Downloaded deploy.prototxt")
+    try:
+        # Download prototxt if not exists
+        if not os.path.exists(prototxt_path):
+            print("Downloading MobileNet SSD prototxt file...")
+            urllib.request.urlretrieve(prototxt_url, prototxt_path)
+            print("Downloaded deploy.prototxt")
 
-    # Download caffemodel if not exists
-    if not os.path.exists(model_path):
-        print("Downloading MobileNet SSD model file (this may take a while)...")
-        urllib.request.urlretrieve(model_url, model_path)
-        print("Downloaded mobilenet_iter_73000.caffemodel")
+        # Download caffemodel if not exists
+        if not os.path.exists(model_path):
+            print("Downloading MobileNet SSD model file (this may take a while)...")
+            urllib.request.urlretrieve(model_url, model_path)
+            print("Downloaded mobilenet_iter_73000.caffemodel")
+    except HTTPError as e:
+        print(f"Error: HTTP error while downloading model files: {e}")
+        print("Please check your internet connection and try again.")
+        sys.exit(1)
+    except URLError as e:
+        print(f"Error: Network error while downloading model files: {e}")
+        print("Please check your internet connection and try again.")
+        sys.exit(1)
+    except OSError as e:
+        print(f"Error: File system error while saving model files: {e}")
+        print("Please check disk space and write permissions.")
+        sys.exit(1)
 
     return prototxt_path, model_path
 
@@ -122,6 +135,10 @@ def detect_objects(frame, net, confidence_threshold=0.5):
         if confidence > confidence_threshold:
             class_id = int(detections[0, 0, i, 1])
 
+            # Validate class_id is within valid range
+            if class_id < 0 or class_id >= len(CLASSES):
+                continue
+
             # Get bounding box coordinates
             box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
             start_x, start_y, end_x, end_y = box.astype("int")
@@ -149,6 +166,10 @@ def draw_detections(frame, detections):
         Frame with drawn detections
     """
     for class_id, confidence, box in detections:
+        # Skip invalid class IDs
+        if class_id < 0 or class_id >= len(CLASSES):
+            continue
+
         start_x, start_y, end_x, end_y = box
 
         # Get color and label for this class

@@ -3,6 +3,10 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Model files (downloaded automatically)
+*.caffemodel
+deploy.prototxt
+
 # C extensions
 *.so
 
