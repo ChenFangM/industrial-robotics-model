@@ -230,7 +230,7 @@ def main():
                 display = annotated.copy()
 
                 # Draw countdown (large, top-left)
-                countdown_text = f"Next capture in: {remaining + 0.1}s"
+                countdown_text = f"Next capture in: {remaining}s"
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 1.0
                 thickness = 2
